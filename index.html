@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+    	<!-- <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"> -->
+    	<!-- 上述3个meta标签*必须*放在最前面，任何其他内容都*必须*跟随其后！ -->
+		<title>Document</title>
+		<link rel="stylesheet" href="css/css_reset.css">
+		<link rel="stylesheet" href="css/index.css">
+
+		<style>
+			.top{height: 20px}
+			.gameArea{border:1px solid #ddd;margin: 0 20px}
+			.gameArea canvas{margin: 0 auto;display: block;} /* 不能在这里设置宽高，会导致变形 */
+		</style>
+
+		
+	</head>
+	<body>
+		<div class="top"></div>
+		<div class="gameArea">
+			<canvas id="game" width="1880" height="800">
+				Your browser does not support the canvas element.
+			</canvas>
+		</div>
+		<img src="images/gameBg.jpg" alt="" style="display: none">
+	</body>
+	<script src="js/jquery-1.11.3.js"></script>
+	<script>
+			
+		window.requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
+		window.cancelAnimationFrame = window.cancelAnimationFrame || window.webkitCancelRequestAnimationFrame || window.mozCancelRequestAnimationFrame || windooCancelRequestAnimationFrame ||   window.msCancelRequestAnimationFrame;
+
+		var canvas_el = document.getElementById('game'),
+			canvas_st = canvas_el.getContext('2d'),
+			canvas_wid = canvas_el.offsetWidth,
+			canvas_hei = canvas_el.offsetHeight,
+			gift_list = [],
+			gift_timeOver = needTime(),
+			gift_max_len = 10, //同一秒中最多有10个装备
+			tanke_list = [],
+			buller_list = [], /*用来存储产生的子弹，当子弹击中或消失时，将子弹对象设置null*/
+			buller_list_index = [], /*为了性能，记录buller_list设置为null的位置，将新的子弹对象加进buller_list*/
+			tanke_obj1,
+			tanke_obj2;
+
+
+
+
+
+		function gift_power2(options){
+
+			if(Object.prototype.toString.call(options) !== '[object Object]'){
+				options = {};
+			}
+
+			var opts = {};
+
+			opts.width = options.width || 20;
+			opts.height = options.height || 20;
+			opts.loc_x = options.loc_x || 0;
+			opts.loc_y = options.loc_y || 0;
+			opts.powerType = options.powerType || 2;
+			opts.color = options.color || '#000';
+			opts.stroke = options.stroke || '';
+			opts.text = options.text || '';
+
+			this.width = opts.width;
+			this.height = opts.height;
+			this.loc_x = opts.loc_x;
+			this.loc_y = opts.loc_y;
+			this.powerType = opts.powerType;
+
+			this.appearance = {
+				color : opts.color,
+				stroke : opts.stroke,
+				text : opts.text
+			};
+
+
+
+
+
+		}
+
+
+
+
+
+
+
+
+
+		function buller(options){
+
+			var opts = {};
+
+			if(Object.prototype.toString.call(options) !== '[object Object]'){
+				options = {};
+			}
+
+			opts.power = options.power || 1;
+			opts.speed = options.speed || 20;
+			opts.loc_x = options.loc_x || 0;
+			opts.loc_y = options.loc_y || 0;
+			opts.getShapWid = options.getShapWid || 4;
+			opts.getShapHei = options.getShapHei || 4;
+			opts.shootShapWid = options.shootShapWid || 4;
+			opts.shootShapHei = options.shootShapHei || 4;
+			opts.ownerName = options.ownerName || '';
+			opts.deration = options.deration || 0;
+
+			this.power = opts.power;
+			this.speed = opts.speed;
+			this.loc_x = opts.loc_x;
+			this.loc_y = opts.loc_y;
+			this.ownerName = opts.ownerName;
+			this.deration = opts.deration;
+
+
+			if(opts.shootShapWid < opts.shootShapHei){
+				opts.shootShapWid = opts.shootShapHei;
+			}
+
+			/*射击出去的子弹的外形 wid的值不能小于hei*/
+			this.shootShap = {
+				wid : opts.shootShapWid,
+				hei : opts.shootShapHei
+			}
+
+			this.__proto__ = buller.prototype;
+
+			if(!this.init_proto){
+				buller.prototype.init_proto = true;
+				buller.prototype.say = function(){
+					console.log('ok');
+				}
+			}
+
+
+		}
+
+		var buller_superClass = new buller();  //初始化子弹的基类
+
+
+		/*基础子弹 0*/
+		function buller_0(x,y,oName,deration){
+			buller.call(this,{loc_x:x,loc_y:y,ownerName: oName,deration:deration});
+		}
+
+		/*基础子弹 威力为2*/
+		function buller_1(x,y,oName,deration){
+			buller.call(this,{power: 2,loc_x:x,loc_y:y,ownerName: oName,deration:deration});
+		}
+
+		/*基础子弹 威力为2*/
+		function buller_2(x,y,oName,deration){
+			buller.call(this,{power: 3,loc_x:x,loc_y:y,ownerName: oName,deration:deration,speed:24});
+		}
+
+
+
+		function getBuller(type,x,y,oName,deration){
+
+			switch(type){
+
+				case 0 : return new buller_0(x,y,oName,deration);
+					break;
+
+				case 1 : return new buller_1(x,y,oName,deration);
+					break;
+
+				case 2 : return new buller_2(x,y,oName,deration);
+					break;
+			}
+
+		}
+
+		function getIdNum(id_wid){
+
+			var onlyOne = String(new Date().getTime()),
+				len = -id_wid || -5; 
+
+			return onlyOne.slice(len);
+
+		}
+
+
+		function tanke(){
+			this.tankeName = '';
+			this.speed = 10;
+			this.color = '#000';
+			this.width = 40;
+			this.height = 40;
+			this.blood = 10;
+			this.loc_x = 0;
+			this.loc_y = 0;
+			/*加了炮管会影响坦克的外形的大小，在判断是否碰撞和被子弹击中时要将炮管算进去*/
+			this.emitter = {
+				color : '#000',
+				wid : 4,
+				hei : 10,
+				x : 0,  /*x,y可以用来给定子弹发出去时的初始位置，还可以用来画炮管,这里的值为子弹位置*/
+				y : 0,
+				deration : getRandom() % 4
+			};
+
+			this.buller = {
+				type : 0,
+				num : 'unlimited'
+			};
+
+			this.setName = function(){
+				this.tankeName = 'tanke' + getRandom() +getIdNum();
+			};
+
+			this.joinList = function(){
+				tanke_list[tanke_list.length] = this;
+			}
+
+			/*width一定不能比height小*/
+			if(this.width < this.height){
+				this.width = this.height;
+			}
+
+
+			var initialize = (function(tanke){
+
+				tanke.setName();
+
+				tanke.joinList();
+
+
+			})(this);
+
+		}
+
+		tanke_obj1 = new tanke();
+		//tanke_list[tanke_list.length] = tanke_obj1;
+		tanke_obj2 = new tanke();
+		tanke_obj2.color = '#f60';
+		tanke_obj2.emitter.color = '#f60';
+
+		//tanke_list[tanke_list.length] = tanke_obj2;
+
+		/*画背景*/	
+		function drawBG(){
+			var gameBg = new Image();
+
+			/* 程序跑的快，图片一定要先加载，不然显示不了 */
+			gameBg.src = 'images/gameBg.jpg';
+			canvas_st.drawImage(gameBg,0,0);
+
+			canvas_st.save();
+
+		}
+
+
+		function getRandom(rule){
+			var ru = rule || parseInt(Math.random()*100*Math.random()*100);
+			return ru;
+		}
+
+
+		/*获取位置*/
+		function getLocation(obj){
+
+			obj.loc_x = getRandom()%canvas_wid;
+			obj.loc_y = getRandom()%canvas_hei;
+
+			checkArea(obj);
+		}
+
+
+		/*防止重叠*/
+		function stopRecover(){
+			/*暂时未找到思路*/
+		}
+
+
+		function drawEmitter(tanke){
+
+			/*坦克炮的的方向 0向左 1向上 2向右 3向下*/
+			var eterDereaction = tanke.emitter.deration,
+				temp;
+
+			canvas_st.fillStyle = tanke.emitter.color;
+
+
+			switch(eterDereaction){
+				case 0 :    tanke.emitter.x = tanke.loc_x - tanke.emitter.hei; 
+							tanke.emitter.y = tanke.loc_y + Math.floor((tanke.height-tanke.emitter.wid)/2);
+							tanke.emitter.deration = 0;
+							canvas_st.fillRect(tanke.emitter.x,tanke.emitter.y,tanke.emitter.hei,tanke.emitter.wid);
+					break;
+				case 1 :    tanke.emitter.x = tanke.loc_x + Math.floor((tanke.width-tanke.emitter.wid)/2); 
+							tanke.emitter.y = tanke.loc_y - tanke.emitter.hei;
+							tanke.emitter.deration = 1;
+							canvas_st.fillRect(tanke.emitter.x,tanke.emitter.y,tanke.emitter.wid,tanke.emitter.hei);
+					break;
+				case 2 :    temp = tanke.loc_x + tanke.width;
+							tanke.emitter.x = temp + tanke.emitter.hei; 
+							tanke.emitter.y = tanke.loc_y + Math.floor((tanke.height-tanke.emitter.wid)/2);
+							tanke.emitter.deration = 2;
+							canvas_st.fillRect(temp,tanke.emitter.y,tanke.emitter.hei,tanke.emitter.wid);
+					break;
+				case 3 :    tanke.emitter.x = tanke.loc_x + Math.floor((tanke.width-tanke.emitter.wid)/2); 
+							temp = tanke.loc_y + tanke.height;
+							tanke.emitter.y = temp + tanke.emitter.hei;
+							tanke.emitter.deration = 3;
+							canvas_st.fillRect(tanke.emitter.x,temp,tanke.emitter.wid,tanke.emitter.hei);
+					break;
+			}
+
+		}
+
+
+		function drawBlood(tanke){
+			var blood_len = tanke.blood,
+				blood_loc_x = tanke.loc_x,
+				blood_loc_y = tanke.loc_y+tanke.height+5,
+				border_wid = 1,
+				border_hei = 1,
+				blood_wid = 4,
+				blood_hei = 4;
+
+
+			for(;blood_len--;){
+				canvas_st.fillStyle = '#a8e4a7';
+				canvas_st.fillRect(blood_loc_x,blood_loc_y,blood_wid,blood_hei);
+				if(blood_len > 1){
+					canvas_st.fillStyle = '#ddd';
+					canvas_st.fillRect(blood_loc_x+blood_wid,blood_loc_y,border_wid,border_hei);
+				}
+				blood_loc_x = blood_loc_x + blood_wid + border_wid;
+			}
+
+
+		}
+
+
+		function drawTanke(status){
+			var len = tanke_list.length;
+
+			for(;len--;){
+
+				canvas_st.fillStyle = tanke_list[len].color;
+				if(status === 'init'){
+					getLocation(tanke_list[len]);
+				}
+
+				canvas_st.fillRect(tanke_list[len].loc_x,tanke_list[len].loc_y,tanke_list[len].width,tanke_list[len].height);
+
+				drawBlood(tanke_list[len]);		
+
+				drawEmitter(tanke_list[len]);
+					
+			}
+
+		}
+
+
+
+		function tankeFire(tanke){
+
+
+			if(tanke.buller.num !== 'unlimited'){
+
+				if(tanke.buller.num <= 1){
+					tanke.buller.type = 0;
+					tanke.buller.num = 'unlimited';
+				}
+				else{
+					tanke.buller.num -= 1;
+				}
+
+			}
+
+
+			var buller_ind_len = buller_list_index.length;
+
+			if( buller_ind_len === 0){
+				buller_list[buller_list.length] = getBuller(tanke.buller.type,tanke.emitter.x,tanke.emitter.y,tanke.tankeName,tanke.emitter.deration); 
+			}
+			else{
+
+				ind = buller_list_index[0];
+				buller_list_index.shift();
+				buller_list[ind] = getBuller(tanke.buller.type,tanke.emitter.x,tanke.emitter.y,tanke.tankeName,tanke.emitter.deration);
+
+			}
+
+		}
+
+
+
+		function DestoryByBuller(buller_ind){
+			buller_list[buller_ind] = null;
+			buller_list_index[buller_list_index.length] = buller_ind;
+		}
+
+
+
+		function bullerDestoryByBuller(self_ind,other_ind){
+
+			if( buller_list[self_ind].power >  buller_list[other_ind].power){
+
+				buller_list[self_ind].power -= buller_list[other_ind].power;
+
+				DestoryByBuller(other_ind);
+
+			}
+			else if(buller_list[self_ind].power <  buller_list[other_ind].power){
+				
+				buller_list[other_ind].power -= buller_list[self_ind].power;
+
+				DestoryByBuller(self_ind);
+
+			}
+			else{
+
+				DestoryByBuller(self_ind);
+				DestoryByBuller(other_ind);
+
+			}
+
+		}
+
+
+		function isIntersect(x1_min,x1_max,x2_min,x2_max,y1_min,y1_max,y2_min,y2_max){
+			if(x1_min > x2_min ){	
+				if( x1_min > x2_max ){
+					return false;
+				}
+			}
+			else if(x1_min < x2_min){
+				if( x1_max < x2_min){
+					return false;
+				}
+			}
+
+
+			if( y1_min >  y2_min ){
+				if( y1_min > y2_max ){
+					return false;
+				}
+			}
+			else if( y1_min < y2_min){
+				if( y1_max < y2_min ){
+					return false;
+				}
+			}
+
+			return true;
+
+		}
+
+
+		function o_bulller_val(other_buller,o_x,o_x_hign,o_y,o_y_hign){
+
+			switch(other_buller.deration){
+				case 0 : o_y_hign = other_buller.loc_y + other_buller.shootShap.hei;
+						 o_x -=  other_buller.shootShap.wid;
+						 o_x_hign = other_buller.loc_x;
+					break;
+				case 1 : o_y -= other_buller.shootShap.wid;
+						 o_x_hign = other_buller.loc_x + other_buller.shootShap.hei;
+						 o_y_hign = other_buller.loc_y;
+					break;
+				case 2 : o_x_hign = other_buller.loc_x + other_buller.shootShap.wid;
+						 o_y_hign = other_buller.loc_y + other_buller.shootShap.hei;
+					break;
+				case 3 : o_x_hign = other_buller.loc_x + other_buller.shootShap.hei;
+						 o_y_hign = other_buller.loc_y + other_buller.shootShap.wid;
+					break;
+			}
+
+			return [o_x,o_x_hign,o_y,o_y_hign];
+
+		}
+
+
+
+		/*判断子弹之间是否碰撞*/
+		function checkbullerimpact(buller,self_ind){
+
+			var len = buller_list.length,
+				deration = buller.deration,
+				wid = buller.shootShap.wid,
+				hei = buller.shootShap.hei,
+				x = buller.loc_x,
+				y = buller.loc_y,
+				impactFn;
+
+
+			if(len < 2){
+				return false;
+			}
+
+
+			switch(deration){
+
+				case 0: impactFn = function(other_buller){
+
+					var o_x = other_buller.loc_x,
+						o_y = other_buller.loc_y,
+						o_x_hign,
+						o_y_hign,
+						temp;
+
+					x -=  wid;
+
+					/*switch(other_buller.deration){
+						case 0 : o_y_hign = other_buller.loc_y + other_buller.shootShap.hei;
+								 o_x -=  other_buller.shootShap.wid;
+								 o_x_hign = other_buller.loc_x;
+							break;
+						case 1 : o_y -= other_buller.shootShap.wid;
+								 o_x_hign = other_buller.loc_x + other_buller.shootShap.hei;
+								 o_y_hign = other_buller.loc_y;
+							break;
+						case 2 : o_x_hign = other_buller.loc_x + other_buller.shootShap.wid;
+								 o_y_hign = other_buller.loc_y + other_buller.shootShap.hei;
+							break;
+						case 3 : o_x_hign = other_buller.loc_x + other_buller.shootShap.hei;
+								 o_y_hign = other_buller.loc_y + other_buller.shootShap.wid;
+							break;
+					}*/
+
+					temp = o_bulller_val(other_buller,o_x,o_x_hign,o_y,o_y_hign);
+
+					o_x = temp[0];
+					o_x_hign = temp[1];
+					o_y = temp[2];
+					o_y_hign = temp[3];
+
+					/*相交可能性判断  由于相交可能性较低改为不相交判断*/
+
+					/*
+					相交判断
+					if(x > o_x ){
+						
+						if( x <= o_x_hign ){
+							isIn_x = true;
+						}
+
+					}
+					else if(x < o_x){
+						if( (x+wid) >= o_x){
+							isIn_x = true;
+						}
+					}
+					else{
+						isIn_x = true;
+					}
+
+
+
+					if( y >  o_y ){
+
+						if( y <= o_y_hign ){
+							isIn_y = true;
+						}
+
+					}
+					else if( y < o_y){
+						if( (y+hei) >= o_y ){
+							isIn_y = true;
+						}
+					}
+					else{
+						isIn_y = true;
+					}
+ 
+					return isIn_x && isIn_y;*/
+
+
+
+					/*
+					if(x > o_x ){	
+						if( x > o_x_hign ){
+							return false;
+						}
+					}
+					else if(x < o_x){
+						if( (x+wid) < o_x){
+							return false;
+						}
+					}
+
+
+					if( y >  o_y ){
+						if( y > o_y_hign ){
+							return false;
+						}
+					}
+					else if( y < o_y){
+						if( (y+hei) < o_y ){
+							return false;
+						}
+					}
+					*/
+
+					if( !isIntersect(x,(x+wid),o_x,o_x_hign,y,(y+hei),o_y,o_y_hign) ){
+						return false;
+					}
+
+					/*同一辆坦克的子弹可以重叠*/
+					return buller.ownerName !== other_buller.ownerName;
+
+				};
+					break;
+				case 1: impactFn = function(other_buller){
+
+					var o_x = other_buller.loc_x,
+						o_y = other_buller.loc_y,
+						o_x_hign,
+						o_y_hign,
+						temp;
+
+					y -= wid;
+
+					temp = o_bulller_val(other_buller,o_x,o_x_hign,o_y,o_y_hign);
+
+					o_x = temp[0];
+					o_x_hign = temp[1];
+					o_y = temp[2];
+					o_y_hign = temp[3];
+
+					if( !isIntersect(x,(x+hei),o_x,o_x_hign,y,(y+wid),o_y,o_y_hign) ){
+						return false;
+					}
+
+					/*同一辆坦克的子弹可以重叠*/
+					return buller.ownerName !== other_buller.ownerName;
+
+				};
+					break;
+				case 2: impactFn = function(other_buller){
+
+					var o_x = other_buller.loc_x,
+						o_y = other_buller.loc_y,
+						o_x_hign,
+						o_y_hign,
+						temp;
+
+					temp = o_bulller_val(other_buller,o_x,o_x_hign,o_y,o_y_hign);
+
+					o_x = temp[0];
+					o_x_hign = temp[1];
+					o_y = temp[2];
+					o_y_hign = temp[3];
+
+					if( !isIntersect(x,(x+wid),o_x,o_x_hign,y,(y+hei),o_y,o_y_hign) ){
+						return false;
+					}
+
+					/*同一辆坦克的子弹可以重叠*/
+					return buller.ownerName !== other_buller.ownerName;
+
+				};
+					break;
+				case 3: impactFn = function(other_buller){
+
+					var o_x = other_buller.loc_x,
+						o_y = other_buller.loc_y,
+						o_x_hign,
+						o_y_hign,
+						temp;
+
+					temp = o_bulller_val(other_buller,o_x,o_x_hign,o_y,o_y_hign);
+
+					o_x = temp[0];
+					o_x_hign = temp[1];
+					o_y = temp[2];
+					o_y_hign = temp[3];
+
+					if( !isIntersect(x,(x+hei),o_x,o_x_hign,y,(y+wid),o_y,o_y_hign) ){
+						return false;
+					}
+
+					/*同一辆坦克的子弹可以重叠*/
+					return buller.ownerName !== other_buller.ownerName;
+
+				};
+					break;		
+			}
+
+			for(;len--;){
+
+				if(len !== self_ind && buller_list[len] != null){
+
+					if( impactFn(buller_list[len]) ){
+
+						bullerDestoryByBuller(self_ind,len);
+						return true;
+					}
+
+				}
+
+			}
+
+			return false;
+
+		}
+
+
+		function destoryTanke(tanke_ind){
+
+			cancelAnimationFrame(gameRun);
+			document.onkeyup = null;
+			alert('游戏结束');
+
+		}
+
+
+
+		function HitTanke(buller_ind,tanke_ind){
+
+			/*坦克受到子弹攻击后的情况*/
+			if( tanke_list[tanke_ind].blood > buller_list[buller_ind].power ){
+
+				tanke_list[tanke_ind].blood -= buller_list[buller_ind].power;
+
+				DestoryByBuller(buller_ind);
+
+			}
+			else if( tanke_list[tanke_ind].blood < buller_list[buller_ind].power ){
+
+				buller_list[buller_ind].power -= tanke_list[tanke_ind].blood;
+
+				destoryTanke();
+			}
+			else{
+
+				DestoryByBuller(buller_ind);
+				destoryTanke();
+			}
+
+		}
+
+
+		function o_tanke_val(tanke,o_x_hign,o_y_hign){
+
+			switch(tanke.emitter.deration){
+
+				case 0 : o_x_hign = tanke.loc_x + tanke.width;
+						 o_y_hign = tanke.loc_y + tanke.height;
+					break;
+				case 1 : o_x_hign = tanke.loc_x + tanke.height;
+						 o_y_hign = tanke.loc_y + tanke.width;
+					break;
+				case 2 : o_x_hign = tanke.loc_x + tanke.width;
+						 o_y_hign = tanke.loc_y + tanke.height;
+					break;
+				case 3 : o_x_hign = tanke.loc_x + tanke.height;
+						 o_y_hign = tanke.loc_y + tanke.width;
+					break;
+			}
+
+			return [o_x_hign,o_y_hign];
+
+		}
+
+
+		/*判断子弹是否击中坦克*/
+		function isHitTanke(buller,self_ind){
+
+			var len = tanke_list.length,
+				deration = buller.deration,
+				wid = buller.shootShap.wid,
+				hei = buller.shootShap.hei,
+				x = buller.loc_x,
+				y = buller.loc_y,
+				temp,
+				hitFn;
+
+
+			switch(buller.deration){
+
+				case 0 : hitFn = function(tanke){
+
+					var o_x = tanke.loc_x,
+						o_y = tanke.loc_y,
+						o_x_hign,
+						o_y_hign,
+						temp;
+
+					x -=  wid;
+
+					temp = o_tanke_val(tanke,o_x_hign,o_y_hign);
+
+					o_x_hign = temp[0];
+					o_y_hign = temp[1];
+
+					if( !isIntersect(x,(x+wid),o_x,o_x_hign,y,(y+hei),o_y,o_y_hign) ){
+						return false;
+					}
+
+					return true;
+
+				};
+					break;
+				case 1: hitFn = function(tanke){
+
+					var o_x = tanke.loc_x,
+						o_y = tanke.loc_y,
+						o_x_hign,
+						o_y_hign,
+						temp;
+
+					y -= wid;
+
+					temp = o_tanke_val(tanke,o_x_hign,o_y_hign);
+
+					o_x_hign = temp[0];
+					o_y_hign = temp[1];
+
+					if( !isIntersect(x,(x+hei),o_x,o_x_hign,y,(y+wid),o_y,o_y_hign) ){
+						return false;
+					}
+
+					return true;
+
+				};
+					break;
+				case 2: hitFn = function(tanke){
+
+					var o_x = tanke.loc_x,
+						o_y = tanke.loc_y,
+						o_x_hign,
+						o_y_hign,
+						temp;
+
+					temp = o_tanke_val(tanke,o_x_hign,o_y_hign);
+
+					o_x_hign = temp[0];
+					o_y_hign = temp[1];
+
+					if( !isIntersect(x,(x+wid),o_x,o_x_hign,y,(y+hei),o_y,o_y_hign) ){
+						return false;
+					}
+
+					return true;
+
+				};
+					break;
+				case 3: hitFn = function(tanke){
+
+					var o_x = tanke.loc_x,
+						o_y = tanke.loc_y,
+						o_x_hign,
+						o_y_hign,
+						temp;
+
+					temp = o_tanke_val(tanke,o_x_hign,o_y_hign);
+
+					o_x_hign = temp[0];
+					o_y_hign = temp[1];
+
+					if( !isIntersect(x,(x+hei),o_x,o_x_hign,y,(y+wid),o_y,o_y_hign) ){
+						return false;
+					}
+
+					return true;
+
+				};
+					break;	
+			}
+
+			for(;len--;){
+
+				if( tanke_list[len].tankeName === buller.ownerName ){
+					continue;
+				}
+
+				if( hitFn(tanke_list[len]) ){
+
+					HitTanke(self_ind,len);
+					return true;
+				}
+
+			}
+
+			return false;
+
+		}
+
+
+		function overGameArea(buller,self_ind){
+
+			var inGameArea = false;
+
+			switch(buller.deration){
+
+				case 0 : if(buller.loc_x-buller.shootShap.wid <= 0){
+					inGameArea = true;
+				}
+					break;
+				case 1 : if(buller.loc_y-buller.shootShap.wid <= 0){
+					inGameArea = true;
+				}
+					break;
+				case 2 : if(buller.loc_x+buller.shootShap.wid >= canvas_wid){
+					inGameArea = true;
+				}
+					break;
+				case 3 : if(buller.loc_y+buller.shootShap.wid >= canvas_hei){
+					inGameArea = true;
+				}
+					break;
+			}
+
+			if(inGameArea){
+				DestoryByBuller(self_ind);
+				return true;
+			}
+
+			return false;
+
+		}
+
+		function drawBuller(){
+
+			var len = buller_list.length,
+				that_bu;
+
+			canvas_st.fillStyle = '#000';
+
+			for(;len--;){
+
+				that_bu = buller_list[len];
+
+				if(that_bu == null){
+					continue;
+				}
+
+				/* 当子弹的为长方形时， wid一定比hei大 */
+
+				switch(that_bu.deration){
+
+					case 0 : canvas_st.fillRect(that_bu.loc_x-that_bu.shootShap.wid,that_bu.loc_y,that_bu.shootShap.wid,that_bu.shootShap.hei);
+						break;
+					case 1 : canvas_st.fillRect(that_bu.loc_x,that_bu.loc_y-that_bu.shootShap.hei,that_bu.shootShap.wid,that_bu.shootShap.hei);
+						break;
+					case 2 : canvas_st.fillRect(that_bu.loc_x,that_bu.loc_y,that_bu.shootShap.hei,that_bu.shootShap.wid);
+						break;
+					case 3 : canvas_st.fillRect(that_bu.loc_x,that_bu.loc_y,that_bu.shootShap.hei,that_bu.shootShap.wid);
+						break;
+				}
+
+				/*检查是否击中（射到坦克，射到墙上，子弹和子弹互撞，威力小消失，威力大的留着，但威力相应减小，威力相同就都消失）*/
+
+				/*检查子弹是否互撞*/
+				/*checkbullerimpact(that_bu,len);*/
+
+				/*判断是否击中坦克*/
+				/*isHitTanke(that_bu,len);*/
+
+				/*判断是否到游戏边界*/
+				/*overGameArea(that_bu,len);*/
+
+
+				if( !checkbullerimpact(that_bu,len) && !isHitTanke(that_bu,len) && !overGameArea(that_bu,len) ){
+
+					//子弹飞行
+
+					switch(that_bu.deration){
+						case 0 : that_bu.loc_x -= that_bu.speed;
+							break;
+						case 1 : that_bu.loc_y -= that_bu.speed;
+							break;
+						case 2 : that_bu.loc_x += that_bu.speed;
+							break;
+						case 3 : that_bu.loc_y += that_bu.speed;
+							break;
+					}
+
+				}
+
+			}
+
+		}
+
+
+		function needTime(){
+
+			/*随机 20秒到70秒*/
+
+			var time_now = new Date().getTime(),
+				times = 2000 + Math.floor( Math.random() * 5000);
+
+			return time_now + times;
+
+		}
+
+
+		function giftGenerate(){
+			var len = gift_list.length,
+				time_now = 0;
+
+			if(len <= gift_max_len){
+
+				time_now = new Date().getTime();
+
+				//达到多少时间执行
+				if(time_now >= gift_timeOver){
+
+					gift_timeOver =  needTime();
+
+					//生成装备
+
+
+
+
+				}
+
+				
+			}
+
+
+
+		}
+
+
+		function gameinit(){
+
+			drawBG();
+
+			drawTanke('init');	
+
+			/*onkeydown 不能两个键以上同时按紧 目前找不到解决办法用 onkeyup来替代下*/
+
+			/*用于禁用浏览器默认事件，如按上下键会滚动页面*/
+			document.onkeydown = function(e){
+				e.stopPropagation();
+				e.preventDefault();
+			}
+
+			document.onkeyup = function(e){
+				e.stopPropagation();
+				e.preventDefault();
+
+				console.log(e.keyCode);
+
+				/* 坦克1 37向左，38向上，39向右，40向下 */
+				if( e.keyCode === 37 || e.keyCode === 38 || e.keyCode === 39 || e.keyCode === 40 ){
+					gamePlay(e.keyCode,tanke_obj1);
+				}
+				/*坦克1 普通开火 按键为小键盘的0键，对应的keyCode为96*/
+				else if(e.keyCode === 96){
+					tankeFire(tanke_obj1);
+				}
+
+				/* 坦克2 65向左，87向上，68向右，83向下 */
+				if( e.keyCode === 65 || e.keyCode === 87 || e.keyCode === 68 || e.keyCode === 83){
+					gamePlay(e.keyCode,tanke_obj2);
+				}
+				/*坦克2 普通开火 按键为空格键，对应的keyCode为32*/
+				else if(e.keyCode === 32){
+					tankeFire(tanke_obj2);
+				} 
+
+			}
+			
+			//canvas_st.restore();
+
+			//gameRun();
+
+			requestAnimationFrame(gameRun);
+
+		}
+
+
+		function gameRun(){
+
+			drwaGame();
+
+			requestAnimationFrame(gameRun);
+
+		}
+
+
+
+		function gamePlay(key,obj){
+			//console.log(key);
+
+			switch(key){
+				case 65:
+				case 37:  obj.loc_x -= obj.speed;
+						  obj.emitter.deration = 0;	
+					break;
+				case 87:
+				case 38:  obj.loc_y -= obj.speed;
+						  obj.emitter.deration = 1;
+					break;
+				case 68:
+				case 39:  obj.loc_x += obj.speed;
+						  obj.emitter.deration = 2;
+					break;
+				case 83:
+				case 40:  obj.loc_y += obj.speed;
+						  obj.emitter.deration = 3;
+					break;		
+
+			}
+
+			checkArea(obj);
+
+		}
+
+
+		function checkArea(obj){
+
+			if(obj.loc_x < 0){
+				obj.loc_x = 0;
+			}
+			else if((obj.loc_x+obj.width)>canvas_wid){
+				obj.loc_x = canvas_wid - obj.width;
+			}
+			if(obj.loc_y < 0){
+				obj.loc_y = 0;
+			}
+			else if((obj.loc_y+obj.height)>canvas_hei){
+				obj.loc_y = canvas_hei - obj.height;
+			}
+
+		}
+
+
+
+		function drwaGame(){
+
+			canvas_st.clearRect(0,0,canvas_wid,canvas_hei);
+
+			drawBG();
+
+			drawTanke();
+
+			drawBuller();
+
+		}
+
+
+
+
+
+		gameinit();
+	
+
+
+	</script>
+</html>
