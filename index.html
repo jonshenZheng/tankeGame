@@ -10,7 +10,10 @@
 		<link rel="stylesheet" href="css/index.css">
 
 		<style>
-			.top{height: 20px}
+			.fl{float: left;}
+			.fr{float: right;}	
+			.top{padding: 20px 120px;clear: both;overflow: hidden;}
+			.top p{padding-left: 40px}
 			.gameArea{border:1px solid #ddd;margin: 0 20px}
 			.gameArea canvas{margin: 0 auto;display: block;} /* 不能在这里设置宽高，会导致变形 */
 		</style>
@@ -18,10 +21,24 @@
 		
 	</head>
 	<body>
-		<div class="top"></div>
+		<div class="top">
+			
+			<div class="fl">黑色坦克按键：
+				<p>移动按键 ： 上下左右对应键盘的 小键盘旁边的方向键</p> 
+				<p>开火按键 ：小键盘 “0键”</p>
+			</div>
+
+			
+
+			<div class="fr">红色坦克按键：
+				<p>移动按键 ： 上下左右对应键盘的 'w' 's' 'a' 'd' 键</p>
+				<p>开火按键 ：空格键</p>
+			</div>
+
+		</div>
 		<div class="gameArea">
 			<canvas id="game" width="1880" height="800">
-				Your browser does not support the canvas element.
+				请下载最新版谷歌浏览器
 			</canvas>
 		</div>
 		<img src="images/gameBg.jpg" alt="" style="display: none">
@@ -1034,8 +1051,14 @@
 
 			/*用于禁用浏览器默认事件，如按上下键会滚动页面*/
 			document.onkeydown = function(e){
+
 				e.stopPropagation();
-				e.preventDefault();
+
+				if( e.keyCode === 65 || e.keyCode === 87 || e.keyCode === 68 || e.keyCode === 83){				
+					e.preventDefault();
+				}
+
+				
 			}
 
 			document.onkeyup = function(e){
